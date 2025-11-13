@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Black Squirrel Bakery Countdown</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font for a clean, modern look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+
+        .timer-unit {
+            min-width: 80px;
+            /* Ensure columns don't collapse */
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="bg-white p-8 md:p-12 shadow-2xl rounded-xl w-full max-w-4xl text-center">
+        <!-- Title -->
+        <h1 class="text-xl font-bold text-gray-700 mb-4">
+            Countdown to Black Squirrel Bakery's Return
+        </h1>
+
+        <!-- Content Area (Rows 2, 3, 4 from Python app) -->
+        <div id="date-breakdown" class="space-y-2 text-left mx-auto max-w-lg mb-8">
+            <p id="total-days-line" class="text-2xl md:text-3xl text-gray-800"></p>
+            <p id="weeks-days-line" class="text-sm text-gray-600"></p>
+            <p id="months-weeks-days-line" class="text-sm text-gray-600"></p>
+        </div>
+
+        <!-- Ticking Live Timer (Row 5) -->
+        <div id="live-timer"
+            class="flex justify-center flex-wrap gap-x-2 md:gap-x-6 py-6 border-t border-b border-gray-200">
+            <!-- Units will be inserted here -->
+        </div>
+
+        <!-- Image/Placeholder (Row 6) -->
+        <div class="mt-8">
+            <!-- UPDATED: Now points to the local file "bsb.png" -->
+            <img src="bsb.png" alt="Black Squirrel Bakery Logo" class="mx-auto rounded-lg shadow-md"
+                onerror="this.onerror=null; this.src='https://placehold.co/400x300/a35f1e/ffffff?text=Image+Missing'" />
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        // Target date: May 4th, 2026, 8:00 AM.
+        // NOTE: The Date object is created in the user's local time zone, 
+        // and JavaScript handles the DST shift automatically when calculating the difference.
+        const TARGET_DATE = new Date('May 4, 2026 08:00:00');
+
+        // --- DOM Elements ---
+        const liveTimerContainer = document.getElementById('live-timer');
+        const dateBreakdownContainer = document.getElementById('date-breakdown');
+
+        // --- Utility Functions ---
+
+        /**
+         * Renders the two lines of the date breakdown (total days, weeks/days, etc.)
+         * This uses simple date components and is not the ticking timer.
+         */
+        function updateDateBreakdown() {
+            const now = new Date();
+            const targetDateOnly = new Date(TARGET_DATE.toDateString());
+            const nowTimeOnly = new Date(now.toDateString());
+
+            if (now > TARGET_DATE) {
+                dateBreakdownContainer.innerHTML = '<p class="text-2xl font-bold text-green-600">Black Squirrel Bakery has already returned! Welcome back! 🎉</p>';
+                return;
+            }
+
+            const totalDaysMs = targetDateOnly - nowTimeOnly;
+            const totalDays = Math.ceil(totalDaysMs / (1000 * 60 * 60 * 24));
+
+            // Line 1: Total Days
+            document.getElementById('total-days-line').innerHTML =
+                `Only <span class="font-extrabold text-red-500">${totalDays}</span> days until Black Squirrel Bakery returns! 🐿️`;
+
+            // Calculate for the secondary lines (this is a simpler, less precise calculation)
+            const remainingMonths = (TARGET_DATE.getFullYear() - now.getFullYear()) * 12 + (TARGET_DATE.getMonth() - now.getMonth());
+            const remainingWeeks = Math.floor(totalDays / 7);
+            const remainingDays = totalDays % 7;
+
+            // Line 2: Weeks and days
+            document.getElementById('weeks-days-line').innerHTML =
+                `.. <span class="font-semibold">${remainingWeeks}</span> weeks and ${remainingDays} days`;
+
+            // Line 3: Months, weeks, and days (using a simplified month estimation)
+            // Note: This matches the old Python logic's intent, but the live timer below is more precise.
+            document.getElementById('months-weeks-days-line').innerHTML =
+                `.. <span class="font-semibold">${remainingMonths}</span> months ${remainingWeeks % 4} weeks ${remainingDays} days`;
+        }
+
+
+        /**
+         * Calculates the precise time remaining, maximizing months, weeks, then days.
+         * Returns an object { months, weeks, days, hours, minutes, seconds }
+         */
+        function calculatePreciseCountdown(now, target) {
+            let tempDate = new Date(now.getTime());
+            let months = 0;
+
+            // 1. MAXIMIZE FULL MONTHS
+            // Increment months until adding another month overshoots the target.
+            while (true) {
+                const nextMonth = new Date(tempDate.getTime());
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+                // Handle month overflow (e.g., if we try to set Feb 31st, JS rolls to Mar 3rd)
+                // This check ensures we only count a "full month" if the date hasn't jumped unexpectedly
+                if (nextMonth.getDate() !== tempDate.getDate()) {
+                    // It rolled over, manually set it to the last day of the next month
+                    nextMonth.setDate(0);
+                    nextMonth.setMonth(nextMonth.getMonth() + 2); // Jump back to the month we wanted
+                    nextMonth.setDate(0); // Set to the last day of the desired month
+                }
+
+                if (nextMonth <= target) {
+                    tempDate = nextMonth;
+                    months++;
+                } else {
+                    break;
+                }
+            }
+
+            // 2. Calculate remaining time (milliseconds)
+            let diff = target.getTime() - tempDate.getTime();
+
+            // 3. MAXIMIZE WEEKS, THEN DAYS (from remaining time)
+
+            // Total seconds remaining
+            let totalSeconds = Math.floor(diff / 1000);
+
+            // Calculate remaining days total
+            let remainingDaysTotal = Math.floor(totalSeconds / (3600 * 24));
+
+            let weeks = Math.floor(remainingDaysTotal / 7);
+            let days = remainingDaysTotal % 7;
+
+            // Remaining seconds after days are factored out
+            totalSeconds %= (3600 * 24);
+
+            // 4. BREAK DOWN TIME
+            let hours = Math.floor(totalSeconds / 3600);
+            totalSeconds %= 3600;
+            let minutes = Math.floor(totalSeconds / 60);
+            let seconds = totalSeconds % 60;
+
+            return {
+                months: months,
+                weeks: weeks,
+                days: days,
+                hours: hours,
+                minutes: minutes,
+                seconds: seconds
+            };
+        }
+
+
+        /**
+         * Creates and initializes the structure for the vertical timer.
+         */
+        function initializeTimerStructure() {
+            const units = ["months", "weeks", "days", "hours", "minutes", "seconds"];
+            liveTimerContainer.innerHTML = ''; // Clear previous content
+
+            units.forEach(unit => {
+                const unitDiv = document.createElement('div');
+                unitDiv.className = 'timer-unit flex flex-col items-center p-2 rounded-lg';
+
+                // Top: Number
+                const numSpan = document.createElement('span');
+                numSpan.id = `timer-${unit}-num`;
+                numSpan.className = 'text-4xl md:text-5xl font-extrabold text-red-600 transition-colors duration-100';
+                numSpan.textContent = '00';
+
+                // Bottom: Label
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'text-xs md:text-sm font-semibold text-gray-500 mt-1 uppercase';
+                labelSpan.textContent = unit;
+
+                unitDiv.appendChild(numSpan);
+                unitDiv.appendChild(labelSpan);
+                liveTimerContainer.appendChild(unitDiv);
+            });
+        }
+
+        /**
+         * Main function that ticks every second.
+         */
+        function tickTimer() {
+            const now = new Date();
+
+            if (now >= TARGET_DATE) {
+                // Stop the timer and update the display to the final message
+                clearInterval(window.timerInterval);
+                dateBreakdownContainer.innerHTML = '<p class="text-2xl font-bold text-green-600">IT IS TIME! Black Squirrel Bakery has returned! 🥳</p>';
+                liveTimerContainer.innerHTML = '';
+                return;
+            }
+
+            const timeRemaining = calculatePreciseCountdown(now, TARGET_DATE);
+
+            // Update the display for each component
+            document.getElementById('timer-months-num').textContent = String(timeRemaining.months).padStart(2, '0');
+            document.getElementById('timer-weeks-num').textContent = String(timeRemaining.weeks).padStart(2, '0');
+            document.getElementById('timer-days-num').textContent = String(timeRemaining.days).padStart(2, '0');
+            document.getElementById('timer-hours-num').textContent = String(timeRemaining.hours).padStart(2, '0');
+            document.getElementById('timer-minutes-num').textContent = String(timeRemaining.minutes).padStart(2, '0');
+            document.getElementById('timer-seconds-num').textContent = String(timeRemaining.seconds).padStart(2, '0');
+
+            // Re-run the date breakdown which doesn't need to tick every second, but is safe to call.
+            updateDateBreakdown();
+        }
+
+        // --- Initialization ---
+
+        function startTimer() {
+            initializeTimerStructure();
+            tickTimer(); // Initial call to display immediately
+            // Store the interval ID on the window object
+            window.timerInterval = setInterval(tickTimer, 1000);
+        }
+
+        // Start the application when the window loads
+        window.onload = startTimer;
+
+    </script>
+</body>
+
+</html>
