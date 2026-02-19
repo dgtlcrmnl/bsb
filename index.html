@@ -58,9 +58,9 @@
 
         /**
          * Renders the two lines of the date breakdown (total days, weeks/days, etc.)
-         * This uses simple date components and is not the ticking timer.
+         * Now accepts the precise timeRemaining object to ensure perfectly synced numbers.
          */
-        function updateDateBreakdown() {
+        function updateDateBreakdown(timeRemaining) {
             const now = new Date();
             const targetDateOnly = new Date(TARGET_DATE.toDateString());
             const nowTimeOnly = new Date(now.toDateString());
@@ -77,21 +77,19 @@
             document.getElementById('total-days-line').innerHTML =
                 `Only <span class="font-extrabold text-red-500">${totalDays}</span> days until Black Squirrel Bakery returns! 🐿️`;
 
-            // Calculate for the secondary lines (this is a simpler, less precise calculation)
-            const remainingMonths = (TARGET_DATE.getFullYear() - now.getFullYear()) * 12 + (TARGET_DATE.getMonth() - now.getMonth());
-            const remainingWeeks = Math.floor(totalDays / 7);
-            const remainingDays = totalDays % 7;
-
-            // Line 2: Weeks and days
+            // Line 2: Total Weeks and remainder days (Correctly calculated from total days)
+            const totalRemainingWeeks = Math.floor(totalDays / 7);
+            const remainderDays = totalDays % 7;
+            
             document.getElementById('weeks-days-line').innerHTML =
-                `.. <span class="font-semibold">${remainingWeeks}</span> weeks and ${remainingDays} days`;
+                `.. <span class="font-semibold">${totalRemainingWeeks}</span> weeks and ${remainderDays} days`;
 
-            // Line 3: Months, weeks, and days (using a simplified month estimation)
-            // Note: This matches the old Python logic's intent, but the live timer below is more precise.
-            document.getElementById('months-weeks-days-line').innerHTML =
-                `.. <span class="font-semibold">${remainingMonths}</span> months ${remainingWeeks % 4} weeks ${remainingDays} days`;
+            // Line 3: Months, weeks, and days (Using the precise data from the live timer!)
+            if (timeRemaining) {
+                document.getElementById('months-weeks-days-line').innerHTML =
+                    `.. <span class="font-semibold">${timeRemaining.months}</span> months <span class="font-semibold">${timeRemaining.weeks}</span> weeks <span class="font-semibold">${timeRemaining.days}</span> days`;
+            }
         }
-
 
         /**
          * Calculates the precise time remaining, maximizing months, weeks, then days.
@@ -157,7 +155,6 @@
             };
         }
 
-
         /**
          * Creates and initializes the structure for the vertical timer.
          */
@@ -200,6 +197,7 @@
                 return;
             }
 
+            // Calculate precise time ONCE per tick
             const timeRemaining = calculatePreciseCountdown(now, TARGET_DATE);
 
             // Update the display for each component
@@ -210,8 +208,8 @@
             document.getElementById('timer-minutes-num').textContent = String(timeRemaining.minutes).padStart(2, '0');
             document.getElementById('timer-seconds-num').textContent = String(timeRemaining.seconds).padStart(2, '0');
 
-            // Re-run the date breakdown which doesn't need to tick every second, but is safe to call.
-            updateDateBreakdown();
+            // Pass the perfectly calculated time object to the breakdown text!
+            updateDateBreakdown(timeRemaining);
         }
 
         // --- Initialization ---
